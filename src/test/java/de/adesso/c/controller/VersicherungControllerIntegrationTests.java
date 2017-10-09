@@ -2,6 +2,7 @@ package de.adesso.c.controller;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,6 +12,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import org.fluttercode.datafactory.impl.DataFactory;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,6 +29,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import de.adesso.c.entities.Versicherungsgesellschaft;
+import de.adesso.c.repository.Versicherungsrepository;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -40,6 +43,9 @@ public class VersicherungControllerIntegrationTests {
 
 	private MockMvc mockMvc;
 
+	@Autowired
+	Versicherungsrepository versicherungsrepo;
+
 	@SuppressWarnings("rawtypes")
 	private HttpMessageConverter mappingJackson2HttpMessageConverter;
 
@@ -52,6 +58,11 @@ public class VersicherungControllerIntegrationTests {
 	@Before
 	public void setup() {
 		this.mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+	}
+
+	@After
+	public void cleanup() {
+		versicherungsrepo.deleteAll();
 	}
 
 	@Test
@@ -72,13 +83,48 @@ public class VersicherungControllerIntegrationTests {
 				.andExpect(jsonPath("$[2].versicherungTelefonnummer", is("0049 333 33333")));
 	}
 
+	@Test
+	public void filterVersicherungMitUuid() throws Exception {
+		Versicherungsgesellschaft versicherungsgesellschaft = versicherungsrepo.save(createJpaVersicherung());
+		this.mockMvc.perform(get("/versicherung?uuid=".concat(versicherungsgesellschaft.getVersicherungUuid())))
+				.andExpect(status().isOk()).andExpect(content().contentType(contentType))
+				.andExpect(jsonPath("$[0].versicherungUuid", is(versicherungsgesellschaft.getVersicherungUuid())))
+				.andExpect(jsonPath("$[0].versicherungName", is(versicherungsgesellschaft.getVersicherungName())))
+				.andExpect(jsonPath("$[0].versicherungEmail", is(versicherungsgesellschaft.getVersicherungEmail())))
+				.andExpect(jsonPath("$[0].versicherungTelefonnummer",
+						is(versicherungsgesellschaft.getVersicherungTelefonnummer())));
+	}
+
+	@Test
+	public void filterVersicherungMitName() throws Exception {
+		Versicherungsgesellschaft versicherungsgesellschaft = versicherungsrepo.save(createJpaVersicherung());
+		this.mockMvc.perform(get("/versicherung?name=".concat(versicherungsgesellschaft.getVersicherungName())))
+				.andExpect(status().isOk()).andExpect(content().contentType(contentType))
+				.andExpect(jsonPath("$[0].versicherungUuid", is(versicherungsgesellschaft.getVersicherungUuid())))
+				.andExpect(jsonPath("$[0].versicherungName", is(versicherungsgesellschaft.getVersicherungName())))
+				.andExpect(jsonPath("$[0].versicherungEmail", is(versicherungsgesellschaft.getVersicherungEmail())))
+				.andExpect(jsonPath("$[0].versicherungTelefonnummer",
+						is(versicherungsgesellschaft.getVersicherungTelefonnummer())));
+	}
+
+	@Test
+	public void versicherungHinzufuegen() throws Exception {
+		Versicherungsgesellschaft versicherungsgesellschaft = createJpaVersicherung();
+		String versicherungString = json(versicherungsgesellschaft);
+		this.mockMvc.perform(post("/versicherung").content(versicherungString).contentType(contentType))
+				.andExpect(status().isCreated())
+//				.andExpect(jsonPath("$.versicherungUuid").isNotEmpty())
+				.andExpect(jsonPath("$.versicherungName", is(versicherungsgesellschaft.getVersicherungName())))
+				.andExpect(jsonPath("$.versicherungEmail", is(versicherungsgesellschaft.getVersicherungEmail())))
+				.andExpect(jsonPath("$.versicherungTelefonnummer", is(versicherungsgesellschaft.getVersicherungTelefonnummer())));
+
+	}
+
 	Versicherungsgesellschaft createJpaVersicherung() {
 		DataFactory dataFactory = new DataFactory();
-		return Versicherungsgesellschaft.builder()
-				.versicherungName(dataFactory.getBusinessName())
+		return Versicherungsgesellschaft.builder().versicherungName(dataFactory.getBusinessName())
 				.versicherungEmail(dataFactory.getEmailAddress())
-				.versicherungTelefonnummer(dataFactory.getNumberText(8))
-				.build();
+				.versicherungTelefonnummer(dataFactory.getNumberText(8)).build();
 	}
 
 	/* Json Konvertierung */
